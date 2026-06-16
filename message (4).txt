@@ -1,0 +1,305 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+typedef struct MenuItem {
+    int id;
+    char name[64];
+    double price;
+    struct MenuItem *prev;
+    struct MenuItem *next;
+} MenuItem;
+
+typedef struct OrderItem {
+    int id;
+    int quantity;
+    struct OrderItem *prev;
+    struct OrderItem *next;
+} OrderItem;
+
+MenuItem *menuHead = NULL;
+MenuItem *menuTail = NULL;
+OrderItem *orderHead = NULL;
+OrderItem *orderTail = NULL;
+int nextMenuId = 1;
+void clearInput() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) {}
+}
+
+MenuItem *createMenuItem(char *name, double price) {
+    MenuItem *item = malloc(sizeof(MenuItem));
+    if (!item) {
+        printf("Erreur d'allocation\n");
+        exit(EXIT_FAILURE);
+    }
+    item->id = nextMenuId++;
+    strncpy(item->name, name, sizeof(item->name) - 1);
+    item->name[sizeof(item->name) - 1] = '\0';
+    item->price = price;
+    item->prev = NULL;
+    item->next = NULL;
+    return item;
+}
+
+void addMenuItem(char *name, double price) {
+    MenuItem *item = createMenuItem(name, price);
+    if (!menuHead) {
+        menuHead = menuTail = item;
+        return;
+    }
+    menuTail->next = item;
+    item->prev = menuTail;
+    menuTail = item;
+}
+
+MenuItem *findMenuItemById(int id) {
+    MenuItem *current = menuHead;
+    while (current) {
+        if (current->id == id) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+void removeMenuItem(int id) {
+    MenuItem *current = findMenuItemById(id);
+    if (!current) {
+        printf("Article introuvable.\n");
+        return;
+    }
+    if (current->prev) {
+        current->prev->next = current->next;
+    } else {
+        menuHead = current->next;
+    }
+    if (current->next) {
+        current->next->prev = current->prev;
+    } else {
+        menuTail = current->prev;
+    }
+    free(current);
+    printf("Article supprime avec succes.\n");
+}
+
+void printMenu() {
+    if (!menuHead) {
+        printf("Le menu est vide.\n");
+        return;
+    }
+    printf("\n--- Menu du restaurant ---\n");
+    MenuItem *current = menuHead;
+    while (current) {
+        printf("%d) %s - %.2f DH\n", current->id, current->name, current->price);
+        current = current->next;
+    }
+    printf("---------------------------\n");
+}
+
+OrderItem *createOrderItem(int id, int quantity) {
+    OrderItem *order = malloc(sizeof(OrderItem));
+    if (!order) {
+        printf("Erreur d'allocation\n");
+        exit(EXIT_FAILURE);
+    }
+    order->id = id;
+    order->quantity = quantity;
+    order->prev = NULL;
+    order->next = NULL;
+    return order;
+}
+
+void addOrderItem(int id, int quantity) {
+    OrderItem *existing = orderHead;
+    while (existing) {
+        if (existing->id == id) {
+            existing->quantity += quantity;
+            return;
+        }
+        existing = existing->next;
+    }
+    OrderItem *order = createOrderItem(id, quantity);
+    if (!orderHead) {
+        orderHead = orderTail = order;
+        return;
+    }
+    orderTail->next = order;
+    order->prev = orderTail;
+    orderTail = order;
+}
+
+void printOrders(void) {
+    if (!orderHead) {
+        printf("Aucune commande en cours.\n");
+        return;
+    }
+    printf("\n--- Commandes en cours ---\n");
+    OrderItem *current = orderHead;
+    while (current) {
+        MenuItem *item = findMenuItemById(current->id);
+        if (item) {
+            printf("%d x %s (%.2f DH chacun) = %.2f DH\n",
+                   current->quantity,
+                   item->name,
+                   item->price,
+                   item->price * current->quantity);
+        } else {
+            printf("%d x Article #%d (supprime du menu)\n", current->quantity, current->id);
+        }
+        current = current->next;
+    }
+    printf("---------------------------\n");
+}
+
+double calculateTotal(void) {
+    double total = 0.0;
+    OrderItem *current = orderHead;
+    while (current) {
+        MenuItem *item = findMenuItemById(current->id);
+        if (item) {
+            total += item->price * current->quantity;
+        }
+        current = current->next;
+    }
+
+    total = round(total * 100.0) / 100.0;
+    return total;
+}
+
+void clearOrders(void) {
+    OrderItem *current = orderHead;
+    while (current) {
+        OrderItem *next = current->next;
+        free(current);
+        current = next;
+    }
+    orderHead = orderTail = NULL;
+}
+
+void freeMenu(void) {
+    MenuItem *current = menuHead;
+    while (current) {
+        MenuItem *next = current->next;
+        free(current);
+        current = next;
+    }
+    menuHead = menuTail = NULL;
+}
+
+void addDefaultMenuItems(void) {
+    addMenuItem("Salade verte", 4.50);
+    addMenuItem("Pizza Margherita", 8.90);
+    addMenuItem("Steak frites", 12.80);
+    addMenuItem("Dessert du jour", 3.90);
+}
+
+int main(void) {
+    int choice;
+    addDefaultMenuItems();
+
+    do {
+        printf("\n=== Gestion de restaurant ===\n");
+        printf("1. Afficher le menu\n");
+        printf("2. Ajouter un article au menu\n");
+        printf("3. Supprimer un article du menu\n");
+        printf("4. Prendre une commande\n");
+        printf("5. Afficher les commandes\n");
+        printf("6. Calculer le total\n");
+        printf("7. Effacer les commandes\n");
+        printf("0. Quitter\n");
+        printf("Choix: ");
+
+        if (scanf("%d", &choice) != 1) {
+
+            printf("Choix invalide. Reessayez.\n");
+            clearInput();
+            continue;
+        }
+
+        switch (choice) {
+            case 1:
+                printMenu();
+
+                break;
+            case 2: {
+                char name[64];
+                double price;
+
+                clearInput();
+                printf("Nom du nouvel article: ");
+                fgets(name, sizeof(name), stdin);
+                name[strcspn(name, "\n")] = '\0';
+                printf("Prix: ");
+                if (scanf("%lf", &price) != 1) {
+
+                    printf("Prix invalide.\n");
+                    clearInput();
+                    break;
+                }
+                addMenuItem(name, price);
+                printf("Article ajoute.\n");
+                break;
+            }
+            case 3: {
+                int id;
+                printf("ID de l'article a supprimer: ");
+                if (scanf("%d", &id) != 1) {
+
+                    printf("ID invalide.\n");
+                    break;
+                }
+                removeMenuItem(id);
+                break;
+            }
+            case 4: {
+                int id, quantity;
+                printMenu();
+                printf("ID de l'article: ");
+                if (scanf("%d", &id) != 1) {
+
+                    printf("ID invalide.\n");
+                    break;
+                }
+                MenuItem *item = findMenuItemById(id);
+                if (!item) {
+                    printf("Article introuvable.\n");
+                    break;
+                }
+                printf("Quantite: ");
+                if (scanf("%d", &quantity) != 1 || quantity <= 0) {
+
+                    printf("Quantite invalide.\n");
+                    break;
+                }
+                addOrderItem(id, quantity);
+                printf("Commande ajoutee: %d x %s\n", quantity, item->name);
+                break;
+            }
+            case 5:
+                printOrders();
+                break;
+            case 6: {
+                double total = calculateTotal();
+                printf("Total de la commande: %.2f EUR\n", total);
+                break;
+            }
+            case 7:
+                clearOrders();
+                printf("Toutes les commandes ont ete effacees.\n");
+                break;
+            case 0:
+                printf("Au revoir !\n");
+                break;
+            default:
+                printf("Choix inconnu. Reessayez.\n");
+                break;
+        }
+    } while (choice != 0);
+
+    clearOrders();
+    freeMenu();
+    return 0;
+}
